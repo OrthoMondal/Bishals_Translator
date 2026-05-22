@@ -4,7 +4,7 @@ import re
 import torch
 import os
 
-# 1. Page Configuration & Custom Styling
+# 1. Page Configuration & Modern Custom Styling
 st.set_page_config(
     page_title="Bishals Translator", 
     page_icon="🌐", 
@@ -29,15 +29,14 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Performance settings for running efficiently on a CPU container
-torch.set_num_threads(4)  # Better thread handling for containerized CPUs
-
+# Initialize short-term memory state variables if they don't exist yet
 if 'show_warning' not in st.session_state:
     st.session_state.show_warning = False
 if 'bypass_offensive' not in st.session_state:
     st.session_state.bypass_offensive = False
 
-device = "cpu"  # Streamlit Cloud free tier uses CPU
+# Set the device globally
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Define paths pointing to your GitHub repository folders
 e2b_model_path = './E2B/checkpoint-4000'
@@ -63,27 +62,14 @@ with st.spinner("⚡ Initializing neural translation engines..."):
     e2b_tokenizer, e2b_model = load_e2b_model()
     b2e_tokenizer, b2e_model = load_b2e_model()
 
-# 3. FAST Inference Execution Logic
 def perform_translation(text, direction_choice):
     if direction_choice == 'English to Bangla':
         inputs = e2b_tokenizer(text, return_tensors="pt").to(device)
-        with torch.no_grad(): # Disable gradient calculations to save massive RAM & time
-            output_tokens = e2b_model.generate(
-                **inputs, 
-                max_length=128,
-                num_beams=1,         # HIGH SPEED: Disables costly beam search branches
-                early_stopping=True   # Stop processing immediately when sentence finishes
-            )
+        output_tokens = e2b_model.generate(**inputs, max_length=128)
         return e2b_tokenizer.decode(output_tokens[0], skip_special_tokens=True)
     else:
         inputs = b2e_tokenizer(text, return_tensors="pt").to(device)
-        with torch.no_grad(): # Disable gradient calculations
-            output_tokens = b2e_model.generate(
-                **inputs, 
-                max_length=128,
-                num_beams=1,         # HIGH SPEED
-                early_stopping=True
-            )
+        output_tokens = b2e_model.generate(**inputs, max_length=128)
         return b2e_tokenizer.decode(output_tokens[0], skip_special_tokens=True)
 
 @st.cache_data
@@ -111,7 +97,7 @@ def contains_offensive_language(text, offensive_words):
 offensive_words_file_path = './offensive_words.txt'
 offensive_words_list = load_offensive_words(offensive_words_file_path)
 
-# App Interface Layout
+# App Interface
 st.title("🌐 Bishals Translator")
 st.caption("AI-powered seamless translation between English and Bangla")
 st.markdown("---")
@@ -134,10 +120,13 @@ with col1:
         height=140
     )
     
+    # Execution flag
     trigger_translation = False
 
+    # Main Button clicked
     if st.button("Translate Now ✨", type="primary", use_container_width=True):
         if text_to_translate.strip():
+            # Reset memory states for a brand new translation attempt
             st.session_state.show_warning = False
             st.session_state.bypass_offensive = False
             
@@ -148,6 +137,7 @@ with col1:
         else:
             st.info("Please enter some text to translate.")
 
+    # Show warning and "Translate Anyway" button if filter was caught
     if st.session_state.show_warning and not st.session_state.bypass_offensive:
         st.warning("⚠️ Warning: The input text may contain potentially offensive or sensitive language.")
         
@@ -155,6 +145,7 @@ with col1:
             st.session_state.bypass_offensive = True
             trigger_translation = True
 
+    # Run translation if safe OR if user clicked the bypass button
     if trigger_translation or st.session_state.bypass_offensive:
         with st.spinner("Processing translation pipeline..."):
             translated_result = perform_translation(text_to_translate, direction)
@@ -167,5 +158,6 @@ with col1:
                 </div>
             """, unsafe_allow_html=True)
             
+            # Clear memory states after successful translation output
             st.session_state.show_warning = False
             st.session_state.bypass_offensive = False
