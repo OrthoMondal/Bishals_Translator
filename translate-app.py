@@ -4,7 +4,7 @@ import re
 import torch
 import os
 
-# 1. Page Configuration & Modern Custom Styling
+# 1. Page Configuration & Adaptive Theme Styling
 st.set_page_config(
     page_title="Bishals Translator", 
     page_icon="🌐", 
@@ -12,20 +12,41 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
+# Inject Modern UI styling using native Streamlit CSS variables
 st.markdown("""
     <style>
-    .stApp { background-color: #f8f9fa; }
-    h1 { font-weight: 700 !important; color: #1e293b !important; letter-spacing: -0.5px; }
+    /* Modernize Headers using the theme's default text color */
+    h1 {
+        font-weight: 700 !important;
+        color: var(--text-color) !important;
+        letter-spacing: -0.5px;
+    }
+    
+    /* Clean custom card for translation output that adapts to Light/Dark mode */
     .translation-card {
-        background-color: #ffffff;
+        background-color: var(--background-color);
         padding: 20px;
         border-radius: 12px;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
-        border: 1px solid #e2e8f0;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        border: 1px solid var(--secondary-background-color);
         margin-top: 15px;
     }
-    .card-title { color: #0f172a; font-weight: 600; margin-bottom: 8px; font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.5px; }
-    .card-body { color: #334155; font-size: 1.15rem; line-height: 1.6; }
+    
+    .card-title {
+        color: var(--text-color);
+        opacity: 0.7;
+        font-weight: 600;
+        margin-bottom: 8px;
+        font-size: 0.85rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    
+    .card-body {
+        color: var(--text-color);
+        font-size: 1.15rem;
+        line-height: 1.6;
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -120,13 +141,10 @@ with col1:
         height=140
     )
     
-    # Execution flag
     trigger_translation = False
 
-    # Main Button clicked
     if st.button("Translate Now ✨", type="primary", use_container_width=True):
         if text_to_translate.strip():
-            # Reset memory states for a brand new translation attempt
             st.session_state.show_warning = False
             st.session_state.bypass_offensive = False
             
@@ -137,7 +155,6 @@ with col1:
         else:
             st.info("Please enter some text to translate.")
 
-    # Show warning and "Translate Anyway" button if filter was caught
     if st.session_state.show_warning and not st.session_state.bypass_offensive:
         st.warning("⚠️ Warning: The input text may contain potentially offensive or sensitive language.")
         
@@ -145,7 +162,6 @@ with col1:
             st.session_state.bypass_offensive = True
             trigger_translation = True
 
-    # Run translation if safe OR if user clicked the bypass button
     if trigger_translation or st.session_state.bypass_offensive:
         with st.spinner("Processing translation pipeline..."):
             translated_result = perform_translation(text_to_translate, direction)
@@ -158,6 +174,5 @@ with col1:
                 </div>
             """, unsafe_allow_html=True)
             
-            # Clear memory states after successful translation output
             st.session_state.show_warning = False
             st.session_state.bypass_offensive = False
