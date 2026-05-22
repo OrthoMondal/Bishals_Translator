@@ -4,7 +4,7 @@ import re
 import torch
 import os
 
-# 1. Page Configuration & Modern Setup
+# 1. Page Configuration & Modern Custom Styling
 st.set_page_config(
     page_title="Bishals Translator", 
     page_icon="🌐", 
@@ -12,20 +12,55 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Initialize a session state variable to track if the user bypassed the warning
-if "bypass_warning" not in st.session_state:
-    st.session_state.bypass_warning = False
+# Inject Modern UI styling
+st.markdown("""
+    <style>
+    /* Main container background and styling */
+    .stApp {
+        background-color: #f8f9fa;
+    }
+    /* Modernize Headers */
+    h1 {
+        font-weight: 700 !important;
+        color: #1e293b !important;
+        letter-spacing: -0.5px;
+    }
+    /* Clean custom card for translation output */
+    .translation-card {
+        background-color: #ffffff;
+        padding: 20px;
+        border-radius: 12px;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+        border: 1px solid #e2e8f0;
+        margin-top: 15px;
+    }
+    .card-title {
+        color: #0f172a;
+        font-weight: 600;
+        margin-bottom: 8px;
+        font-size: 0.95rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    .card-body {
+        color: #334155;
+        font-size: 1.15rem;
+        line-height: 1.6;
+    }
+    </style>
+""", unsafe_allow_html=True)
 
 # Set the device globally
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# Define paths pointing to your GitHub folders
+# Define paths pointing to your GitHub repository folders
 e2b_model_path = './E2B/checkpoint-4000'
 e2b_tokenizer_path = './E2B/checkpoint-4000'
+
 b2e_model_path = './B2E/checkpoint-4000'
 b2e_tokenizer_path = './B2E/checkpoint-4000'
 
-# 2. Cached Loading Functions
+# 2. Cached Resource Loading
 @st.cache_resource
 def load_e2b_model():
     tokenizer = AutoTokenizer.from_pretrained(e2b_tokenizer_path)
@@ -35,28 +70,28 @@ def load_e2b_model():
 
 @st.cache_resource
 def load_b2e_model():
-    tokenizer = AutoTokenizer.from_pretrained(b2e_path) if 'b2e_path' in locals() else AutoTokenizer.from_pretrained(b2e_model_path)
+    tokenizer = AutoTokenizer.from_pretrained(b2e_tokenizer_path)
     model = AutoModelForSeq2SeqLM.from_pretrained(b2e_model_path)
     model.to(device)
     return tokenizer, model
 
-# Display clean minimalist header loader
-with st.spinner("⚡ Initializing neural networks... Please hold."):
+# Initialize models with a smooth loading state
+with st.spinner("⚡ Initializing neural translation engines..."):
     e2b_tokenizer, e2b_model = load_e2b_model()
     b2e_tokenizer, b2e_model = load_b2e_model()
 
 # 3. Core Translation Logic
-def translate_english_to_bangla(text):
-    inputs = e2b_tokenizer(text, return_tensors="pt").to(device)
-    output_tokens = e2b_model.generate(**inputs, max_length=128)
-    return e2b_tokenizer.decode(output_tokens[0], skip_special_tokens=True)
+def perform_translation(text, direction_choice):
+    if direction_choice == 'English to Bangla':
+        inputs = e2b_tokenizer(text, return_tensors="pt").to(device)
+        output_tokens = e2b_model.generate(**inputs, max_length=128)
+        return e2b_tokenizer.decode(output_tokens[0], skip_special_tokens=True)
+    else:
+        inputs = b2e_tokenizer(text, return_tensors="pt").to(device)
+        output_tokens = b2e_model.generate(**inputs, max_length=128)
+        return b2e_tokenizer.decode(output_tokens[0], skip_special_tokens=True)
 
-def translate_bangla_to_english(text):
-    inputs = b2e_tokenizer(text, return_tensors="pt").to(device)
-    output_tokens = b2e_model.generate(**inputs, max_length=128)
-    return b2e_tokenizer.decode(output_tokens[0], skip_special_tokens=True)
-
-# 4. Moderation Filter Logic
+# 4. Offensive Language Content Moderation
 @st.cache_data
 def load_offensive_words(file_path):
     offensive_words_list = []
@@ -65,8 +100,7 @@ def load_offensive_words(file_path):
     try:
         with open(file_path, 'r', encoding='utf-8') as f:
             for line in f:
-                if line.strip():
-                    offensive_words_list.append(line.strip().lower())
+                offensive_words_list.append(line.strip().lower())
     except Exception:
         return []
     return offensive_words_list
@@ -83,81 +117,63 @@ def contains_offensive_language(text, offensive_words):
 offensive_words_file_path = './offensive_words.txt'
 offensive_words_list = load_offensive_words(offensive_words_file_path)
 
-
-# ==========================================
-# 5. Modern UI Render Layout
-# ==========================================
-
+# 5. Modern UI App Interface Layout
 st.title("🌐 Bishals Translator")
-st.caption("A clean, production-ready framework powered by your fine-tuned NLLB translation weights.")
+st.caption("AI-powered seamless translation between English and Bangla")
+st.markdown("---")
 
-# Clean spacing
-st.write("---")
-
-# Segmented controls or side-by-side layout for selectors
-col1, col2 = st.columns([2, 1])
-
-with col1:
-    direction = st.segmented_control(
-        "Translation Track",
-        options=['English to Bangla', 'Bangla to English'],
-        default='English to Bangla'
-    ) or 'English to Bangla' # Fallback default
+# Layout columns for cleaner control alignment
+col1, col2 = st.columns([2, 1], gap="large")
 
 with col2:
-    st.write("<br>", unsafe_allow_html=True) # Align with segmented controls
-    # Clean indicator for runtime acceleration hardware
-    if torch.cuda.is_available():
-        st.markdown("🟢 `GPU Accelerated` ")
-    else:
-        st.markdown("⚪ `CPU Inference` ")
+    st.subheader("Configuration")
+    direction = st.radio(
+        "Translation Direction:",
+        ('English to Bangla', 'Bangla to English'),
+        index=0
+    )
 
-# Main text interface block
-text_to_translate = st.text_area(
-    "Source Text", 
-    placeholder="Type or paste your content here...",
-    height=160
-)
+with col1:
+    st.subheader("Text Processing")
+    text_to_translate = st.text_area(
+        "Enter text to translate:", 
+        placeholder="Type or paste your content here...", 
+        height=140
+    )
+    
+    # Execution Flags & Logic
+    trigger_translation = False
+    is_offensive = False
 
-# Modern Action Control Area
-col_btn1, col_btn2 = st.columns([1, 4])
-trigger_translation = False
-
-with col_btn1:
-    if st.button("Translate", type="primary", use_container_width=True):
-        trigger_translation = True
-
-# Process translation pipeline
-if trigger_translation or st.session_state.bypass_warning:
-    if text_to_translate.strip():
-        # Step A: Perform Moderation Check
-        is_offensive = contains_offensive_language(text_to_translate, offensive_words_list)
-        
-        # Step B: If offensive AND user has not clicked bypass yet, block and show verification toggle
-        if is_offensive and not st.session_state.bypass_warning:
-            st.error("⚠️ System Flag: The input text may violate standard conversational guidelines.")
-            
-            with st.container(border=True):
-                st.markdown("💬 **Override Notice:** Do you still wish to complete this translation request for research or documentation purposes?")
-                if st.button("Proceed Anyway", type="secondary"):
-                    st.session_state.bypass_warning = True
-                    st.rerun() # Refresh the page to apply bypass state changes
-                    
+    if st.button("Translate Now ✨", type="primary", use_container_width=True):
+        if text_to_translate.strip():
+            # Run initial filter check
+            if contains_offensive_language(text_to_translate, offensive_words_list):
+                is_offensive = True
+            else:
+                trigger_translation = True
         else:
-            # Step C: Execution block (Runs normally, or if user explicitly chose to proceed)
-            with st.spinner("Processing translation sequence..."):
-                if direction == 'English to Bangla':
-                    translated_text = translate_english_to_bangla(text_to_translate)
-                    headline = "Target Output (Bangla)"
-                else:
-                    translated_text = translate_bangla_to_english(text_to_translate)
-                    headline = "Target Output (English)"
+            st.info("Please enter some text to translate.")
+
+    # Handle Offensive Warning with the 'Translate Anyway' bypass option
+    if is_offensive:
+        st.warning("⚠️ Warning: The input text may contain potentially offensive or sensitive language.")
+        
+        # Display bypass confirmation button directly inside the warning branch
+        if st.button("Translate Anyway 🔓", type="secondary", use_container_width=True):
+            trigger_translation = True
+
+    # Render Final Translation Output Block
+    if trigger_translation:
+        with st.spinner("Processing translation pipeline..."):
+            translated_result = perform_translation(text_to_translate, direction)
             
-            # Display target translation inside a nice custom border block
-            st.success(f"✨ {headline}")
-            st.text_area("", value=translated_text, height=160, disabled=True, label_visibility="collapsed")
+            target_lang = "Bangla" if direction == 'English to Bangla' else "English"
             
-            # Reset the override flag status silently for subsequent fresh queries
-            st.session_state.bypass_warning = False
-    else:
-        st.toast("Please enter text before clicking translate.", icon="🚨")
+            # Beautiful modern card layout output
+            st.markdown(f"""
+                <div class="translation-card">
+                    <div class="card-title">Translated Output ({target_lang})</div>
+                    <div class="card-body">{translated_result}</div>
+                </div>
+            """, unsafe_allow_html=True)
